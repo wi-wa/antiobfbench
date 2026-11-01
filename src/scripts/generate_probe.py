@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write probe data: ask a generator model for every variant of each request and keep what the environment accepts.
 
-Writes envs/<env>/probe_<split>.jsonl (format from envs/META_SPEC.md, plus `prompt`) and prints how often the model produced
+Writes envs/<env>/probe_<split>.jsonl (format from META_SPEC.md, plus `prompt`) and prints how often the model produced
 what was asked for. Run on one GPU, under arun:
   CUDA_VISIBLE_DEVICES=0 python scripts/generate_probe.py 08 --split near_train --n 200
 """

@@ -582,7 +582,7 @@ The specs of 01–14 haven't been edited, so they no longer describe the code ex
 | 14 | Far adds geography questions. Reward needs exactly one number in the box. Spans are returned even when false. Plain English outside the word list also counts |
 | 16–20 | None: the specs were written with the code |
 
-`envs/META_SPEC.md` line 30 still says specs are in `specs/`; they're in `envs/<env>/spec.md`.
+`META_SPEC.md` line 30 still says specs are in `specs/`; they're in `envs/<env>/spec.md`.
 
 ## Appendix: detail per model and level
 
