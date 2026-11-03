@@ -17,27 +17,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from antiobfbench import all_envs, get_env  # noqa: E402
+from scripts.score_rollouts import SIZES, score_file  # noqa: E402
 
 ENVS = ROOT.parent / 'envs'
-SIZES = {'gemma-3-1b': 1, 'gemma-3-4b': 4, 'gemma-3-12b': 12, 'gemma-3-27b': 27}
 
 
 def mean(values):
     values = list(values)
     return sum(values) / len(values) if values else None
-
-
-def score_file(env, path):
-    rows = [json.loads(line) for line in path.open(encoding='utf8')]
-    tasks = {}
-    for line in (ENVS / env.name / 'tasks.jsonl').open(encoding='utf8'):
-        task = json.loads(line)
-        tasks[task['id']] = task
-    results = env.score([tasks[r['task_id']] for r in rows], [r['text'] for r in rows])
-    for row, result in zip(rows, results):
-        value = result['value']
-        row.update(reward=result['reward'], value=value, ub=None if value is None else bool(env.binary(value)))
-    return rows
 
 
 def contrast(rows):
@@ -55,7 +42,8 @@ def contrast(rows):
     moved = None if use_ub is None or avoid_ub is None else use_ub - avoid_ub
     return dict(n=len(full), use=mean(p[0]['reward'] for p in full), avoid=mean(p[1]['reward'] for p in full), diff=d, ci=1.96 * sd / math.sqrt(len(diffs)),
                 use_ub=use_ub, avoid_ub=avoid_ub, moved=moved, effect=d / moved if moved is not None and moved >= .25 else None,
-                use_solved=mean(p[0]['reward'] >= .999 for p in full), avoid_solved=mean(p[1]['reward'] >= .999 for p in full))
+                use_solved=mean(p[0]['solved'] for p in full), avoid_solved=mean(p[1]['solved'] for p in full),
+                use_format=mean(p[0]['has_format'] for p in full), avoid_format=mean(p[1]['has_format'] for p in full))
 
 
 def main():

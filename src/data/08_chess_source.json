@@ -1,0 +1,47 @@
+{
+  "source_url": "https://database.lichess.org/lichess_db_puzzle.csv.zst",
+  "source_sha256": "7b0d235fa40cfd7fdb7df1fec56a96b3b6ee1496b32ed2eb05be90d0ebf94253",
+  "stockfish": {
+    "name": "Stockfish 19",
+    "author": "the Stockfish developers (see AUTHORS file)"
+  },
+  "engine_sha256": "913ab7100eda1f13fb96442609c3006d3909a33dbe711e42968ba3fcbf5307b6",
+  "nodes_per_post_move": 50000,
+  "threads": 1,
+  "hash_mb": 32,
+  "mate_score": 100000,
+  "python_chess": "1.11.2",
+  "counts": {
+    "(1, 'rl', False)": 700,
+    "(1, 'rl', True)": 300,
+    "(1, 'near_train', False)": 175,
+    "(1, 'near_train', True)": 75,
+    "(1, 'near_test', False)": 175,
+    "(1, 'near_test', True)": 75,
+    "(2, 'rl', False)": 700,
+    "(2, 'rl', True)": 300,
+    "(2, 'near_train', False)": 175,
+    "(2, 'near_train', True)": 75,
+    "(2, 'near_test', False)": 175,
+    "(2, 'near_test', True)": 75,
+    "(3, 'rl', False)": 700,
+    "(3, 'rl', True)": 300,
+    "(3, 'near_train', False)": 175,
+    "(3, 'near_train', True)": 75,
+    "(3, 'near_test', False)": 175,
+    "(3, 'near_test', True)": 75,
+    "(4, 'rl', False)": 700,
+    "(4, 'rl', True)": 300,
+    "(4, 'near_train', False)": 175,
+    "(4, 'near_train', True)": 75,
+    "(4, 'near_test', False)": 175,
+    "(4, 'near_test', True)": 75
+  },
+  "output_sha256": "5bbd88cea722628135e3c801c772d8cb5e5d318974b2dee156a2fa9c75e261e2",
+  "positions": 6000,
+  "rejects": {
+    "negligible_pin_gain": 316,
+    "mixed_best_tie": 6,
+    "disagrees_with_solution": 1
+  }
+}

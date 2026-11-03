@@ -1,17 +1,15 @@
-"""Run model-written Python and regexes with resource limits, a scratch directory, no network and bounded workers.
+"""Run model-written Python with resource limits, a scratch directory and no network.
 
 `safe` is a speed bump against accidents, not a security boundary. Model code runs as the same user, so don't
 loosen it without need. Results are read only from lines carrying a per-call nonce, so printing can't fake a pass.
 """
 import ast
 import json
-import os
 import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCRATCH = Path(__file__).resolve().parents[1] / '.sandbox'
@@ -57,7 +55,7 @@ def safe(code):
 
 
 DRIVER = r'''
-import json, os, random, resource, signal, sys, time
+import json, os, resource, signal, sys
 spec = json.loads(sys.stdin.read())
 out = os.fdopen(os.dup(1), 'w')
 nonce = spec.pop('nonce')
@@ -104,21 +102,32 @@ if spec['mode'] == 'tests':
             timer(spec['per_test'])
             ok = same(fn(*json.loads(args)), want)
             timer(0)
+        except OverTime:
+            timer(0)
+            if spec.get('stop_on_timeout'):
+                break
         except BaseException:
             timer(0)
         emit('test', i, ok)
 elif spec['mode'] == 'recursion':
-    depth, seen = {}, [False]
+    depth, live, seen = {}, {}, [False]
+    yielding = __import__('opcode').opmap['YIELD_VALUE'] if spec.get('generators') else None
     def watch(frame, event, arg):
         code = frame.f_code
         if code.co_filename == 'solution':
             if event == 'call':
                 depth[code] = depth.get(code, 0) + 1
                 seen[0] = seen[0] or depth[code] > 1
+                if yielding is not None and code.co_flags & 0x20 and code.co_name[0] != '<':
+                    live.setdefault(code, set()).add(id(frame))
+                    seen[0] = seen[0] or len(live[code]) > 1
             elif event == 'return':
                 depth[code] = depth.get(code, 1) - 1
+                if code in live and code.co_code[frame.f_lasti] != yielding:
+                    live[code].discard(id(frame))
     for args, _ in spec['tests']:
         depth.clear()
+        live.clear()
         try:
             timer(spec['per_test'])
             sys.setprofile(watch)
@@ -131,27 +140,6 @@ elif spec['mode'] == 'recursion':
             sys.setprofile(None)
             timer(0)
     emit('recursion', seen[0])
-else:
-    random.seed(0)
-    args = eval(spec['stress'], {'random': random})
-    emit('started')
-    t0 = time.perf_counter()
-    try:
-        timer(spec['limit'])
-        got = fn(*args)
-        timer(0)
-        emit('finished', time.perf_counter() - t0)
-        if spec.get('reference'):
-            refs = {'__name__': 'reference'}
-            exec(spec['reference'], refs)
-            random.seed(0)
-            want = refs[spec['name']](*eval(spec['stress'], {'random': random}))
-            emit('right', same(got, json.loads(json.dumps(want))))
-    except OverTime:
-        emit('timeout')
-    except BaseException:
-        timer(0)
-        emit('crashed')
 out.flush()
 os._exit(0)
 '''
@@ -171,11 +159,14 @@ def _run(spec, wall):
     return [json.loads(line[len(nonce) + 1:]) for line in stdout.splitlines() if line.startswith(nonce + ' ')]
 
 
-def run_tests(code, name, tests, per_test=2.0):
-    """Call name(*args) for each (args, expected) pair. Return a pass/fail list; unsafe or broken code fails all."""
+def run_tests(code, name, tests, per_test=2.0, stop_on_timeout=False):
+    """Call name(*args) for each (args, expected) pair. Return a pass/fail list; unsafe or broken code fails all.
+
+    With `stop_on_timeout`, the first test that runs out of time also fails the ones after it, so that code stuck in a loop costs one time limit and not one per test.
+    """
     if not safe(code):
         return [False] * len(tests)
-    spec = dict(mode='tests', code=code, name=name, per_test=per_test, cpu=int(per_test * len(tests)) + 5,
+    spec = dict(mode='tests', code=code, name=name, per_test=per_test, cpu=int(per_test * len(tests)) + 5, stop_on_timeout=stop_on_timeout,
                 tests=[(json.dumps(args), want) for args, want in tests])
     passed = [False] * len(tests)
     for line in _run(spec, per_test * (len(tests) + 1) + 3):
@@ -184,58 +175,13 @@ def run_tests(code, name, tests, per_test=2.0):
     return passed
 
 
-def recurses(code, name, tests, per_test=1.0):
-    """True if some function of the code was on the call stack twice while running name(*args) on the tests. Stops at the first timeout."""
-    if not safe(code):
-        return False
-    spec = dict(mode='recursion', code=code, name=name, per_test=per_test, cpu=int(per_test * len(tests)) + 5,
-                tests=[(json.dumps(args), want) for args, want in tests])
-    return any(line[0] == 'recursion' and line[1] for line in _run(spec, per_test * (len(tests) + 1) + 3))
+def recurses(code, name, tests, per_test=1.0, generators=False):
+    """True if some function of the code was on the call stack twice while running name(*args) on the tests. Stops at the first timeout.
 
-
-def run_stress(code, name, stress, limit=2.0, reference=None):
-    """Call name(*eval(stress)) with `random` seeded inside the driver. Return (outcome, seconds or None).
-
-    The outcome is 'finished', 'timeout' or 'crashed', or 'wrong' if `reference`, the source of a correct solution of the same
-    name, gives another result. Building the input and running the reference don't count toward the limit.
+    With `generators`, two unfinished runs of one generator function count too, even if a loop drives them so that they never nest on the call stack.
     """
     if not safe(code):
-        return 'crashed', None
-    spec = dict(mode='stress', code=code, name=name, stress=stress, limit=limit, per_test=limit, cpu=int(limit) + 8, reference=reference)
-    lines = _run(spec, limit + 8)
-    for line in lines:
-        if line[0] == 'finished':
-            return 'wrong' if ['right', False] in lines else 'finished', line[1]
-        if line[0] == 'timeout':
-            return 'timeout', None
-        if line[0] == 'crashed':
-            return 'crashed', None
-    return ('timeout', None) if any(line[0] == 'started' for line in lines) else ('crashed', None)
-
-
-REGEX_DRIVER = r'''
-import json, re, resource, sys
-spec = json.loads(sys.stdin.read())
-resource.setrlimit(resource.RLIMIT_AS, (2 ** 30, 2 ** 30))
-resource.setrlimit(resource.RLIMIT_CPU, (spec['cpu'], spec['cpu']))
-rx = re.compile(spec['pattern'])
-ok = all(rx.fullmatch(s) for s in spec['pos']) and not any(rx.fullmatch(s) for s in spec['neg'])
-print('match' if ok else 'nomatch')
-'''
-
-
-def regex_fits(pattern, positives, negatives, timeout=2.0):
-    """True if the pattern compiles and full-matches all positives and no negative within the timeout."""
-    spec = dict(pattern=pattern, pos=positives, neg=negatives, cpu=int(timeout) + 1)
-    try:
-        done = subprocess.run([sys.executable, '-I', '-S', '-c', REGEX_DRIVER], input=json.dumps(spec), capture_output=True,
-                              text=True, timeout=timeout, env=ENV)
-    except subprocess.TimeoutExpired:
         return False
-    return done.stdout.strip() == 'match'
-
-
-def bounded_map(fn, items, workers=MAX_WORKERS):
-    """Map fn over items with a bounded thread pool, for functions that wait on a subprocess."""
-    with ThreadPoolExecutor(workers) as pool:
-        return list(pool.map(fn, items))
+    spec = dict(mode='recursion', code=code, name=name, per_test=per_test, cpu=int(per_test * len(tests)) + 5, generators=generators,
+                tests=[(json.dumps(args), want) for args, want in tests])
+    return any(line[0] == 'recursion' and line[1] for line in _run(spec, per_test * (len(tests) + 1) + 3))

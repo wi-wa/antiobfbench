@@ -39,12 +39,6 @@ def tag_span(text, name='answer'):
     return found[-1].span(1) if found else None
 
 
-def pre(text):
-    """The text before the last box or answer tag, or all of it if there is neither."""
-    cut = max(text.rfind('\\boxed{'), text.rfind('<answer>'))
-    return text[:cut] if cut >= 0 else text
-
-
 def code_block(text, defines=None):
     """Content of the last fenced Python code block, or None. With `defines`, the last block defining that function, if any.
 
@@ -91,18 +85,6 @@ def same_answer(a, b):
     return a == b or bool(plain.fullmatch(a) and plain.fullmatch(b) and num(a) == num(b))
 
 
-def ints(text):
-    """All non-negative integers in the text, reading thousands separators and native digits. Skips absurdly long ones."""
-    text = digits_to_ascii(text).replace('\\,', '').replace('{,}', ',')
-    found = re.findall(r'(?<![\d.,])\d{1,3}(?:,\d{3})+(?!\d)|(?<![\d.,])\d+(?!\d)', text)
-    return [int(x.replace(',', '')) for x in found if len(x) <= 100]
-
-
-def has_num(text, value):
-    """True if the number occurs in the text on digit boundaries, ignoring thousands separators."""
-    return re.search(rf'(?<![\d.]){value}(?!\d)', text.replace(',', '')) is not None
-
-
 ONES = 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'twenty thirty forty fifty sixty seventy eighty ninety'.split()
 
@@ -145,28 +127,3 @@ def find_number(text, value):
 
 def has_number(text, value):
     return find_number(text, value) is not None
-
-
-def visible(text):
-    """The text as a reader sees it: without markup, and without characters that don't show."""
-    text = re.sub(r'[*_~`]', '', unicodedata.normalize('NFKC', text))
-    return ''.join(c for c in text if unicodedata.category(c) != 'Cf')
-
-
-def words(text):
-    return re.findall(r'\w+', text.lower())
-
-
-def sentences(text):
-    """Split into sentences, but not after an abbreviation such as D.C. or U.S."""
-    return [s for s in re.split(r'(?<=[.!?])(?<!\.[A-Z]\.)\s+|\n+', text.strip()) if re.search(r'\w', s)]
-
-
-def find_spans(text, needles):
-    """[start, end] of the first occurrence of each needle that occurs in the text."""
-    spans = []
-    for needle in needles:
-        start = text.find(needle)
-        if needle and start >= 0:
-            spans.append([start, start + len(needle)])
-    return spans

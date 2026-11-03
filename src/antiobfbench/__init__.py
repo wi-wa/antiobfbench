@@ -13,8 +13,9 @@ def all_envs():
 
 
 def get_env(name):
-    """Look up an environment by its full name or its two-digit number."""
+    """Look up an environment by its full/short name or number (1 or 01)."""
+    name = str(name)
     for key, env in all_envs().items():
-        if name in (key, key[:2]):
+        if name in (key, key[3:]) or name.zfill(2) == key[:2]:
             return env
     raise KeyError(name)

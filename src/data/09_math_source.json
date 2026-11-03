@@ -1,0 +1,64 @@
+{
+  "datasets": {
+    "gsm8k": {
+      "repo": "openai/gsm8k",
+      "revision": "740312add88f781978c0658806c59bc2815b9866"
+    },
+    "math": {
+      "repo": "EleutherAI/hendrycks_math",
+      "revision": "21a5633873b6a120296cce3e2df9d5550074f4a3"
+    },
+    "aime": {
+      "repo": "gneubig/aime-1983-2024",
+      "revision": "5d610df981dec508dd93d0a16333a029ac1739d8"
+    },
+    "olympiadbench": {
+      "repo": "Hothan/OlympiadBench",
+      "revision": "91184b52131e7fc9455fef848035173aea8cc01a"
+    },
+    "omni_math": {
+      "repo": "KbsdJames/Omni-MATH",
+      "revision": "40ba231d8f16e29ecd40e6407e2c8640145a8f62"
+    }
+  },
+  "counts": {
+    "aime/diagram": 62,
+    "aime/downloaded": 933,
+    "aime/test": 163,
+    "aime/train": 708,
+    "gsm8k/diagram": 22,
+    "gsm8k/downloaded": 8792,
+    "gsm8k/test": 1316,
+    "gsm8k/train": 7454,
+    "math/diagram": 1142,
+    "math/downloaded": 12500,
+    "math/duplicate": 217,
+    "math/missing_or_ungradeable_answer": 4,
+    "math/test": 4552,
+    "math/train": 6585,
+    "olympiadbench/diagram": 4,
+    "olympiadbench/downloaded": 674,
+    "olympiadbench/estimate_or_visual": 3,
+    "olympiadbench/missing_definition": 1,
+    "olympiadbench/missing_or_ungradeable_answer": 93,
+    "olympiadbench/near_duplicate": 4,
+    "olympiadbench/proof_or_overlong": 5,
+    "olympiadbench/source_error": 1,
+    "olympiadbench/test": 38,
+    "olympiadbench/train": 153,
+    "olympiadbench/unconfirmed_or_inconsistent_answer": 372,
+    "omni_math/diagram": 24,
+    "omni_math/downloaded": 4428,
+    "omni_math/duplicate": 5,
+    "omni_math/estimate_or_visual": 39,
+    "omni_math/missing_or_ungradeable_answer": 59,
+    "omni_math/near_duplicate": 18,
+    "omni_math/outside_hmmt_subset": 2147,
+    "omni_math/proof_or_overlong": 1,
+    "omni_math/test": 268,
+    "omni_math/train": 939,
+    "omni_math/unconfirmed_or_inconsistent_answer": 928
+  },
+  "sha256": "cf1cfe73f57e9e28d711e571bfd5227009f62569c4d87823c739f0e1df59fcde",
+  "note": "Original GSM8K/MATH splits and all legacy records retained. AIME and new sources use stable 80/20 problem-hash splits. New sources: English text-only single-answer math expressions confirmed against the worked solution final math expression; Omni-MATH restricted to HMMT_2/HMMT_11 contest provenance; no proofs, estimation tasks, diagrams, source-flagged errors or questions over 3000 characters. Known missing-definition question olympiadbench-1612 omitted. Exact deduplication plus >=0.85 token-5-shingle Jaccard near-duplicate filtering against earlier sources; no semantic deduplication guarantee."
+}

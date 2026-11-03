@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Write probe data: ask a generator model for every variant of each request and keep what the environment accepts.
 
+Environments with `pair_from_base` generate one neutral baseline per pair, then insert matched contrasts.
 Writes envs/<env>/probe_<split>.jsonl (format from META_SPEC.md, plus `prompt`) and prints how often the model produced
 what was asked for. Run on one GPU, under arun:
-  CUDA_VISIBLE_DEVICES=0 python scripts/generate_probe.py 08 --split near_train --n 200
+  CUDA_VISIBLE_DEVICES=0 python scripts/generate_probe.py 05 --split near_train --n 200
 """
 import argparse
 import json
@@ -49,22 +50,29 @@ def main():
     args = ap.parse_args()
     env = get_env(args.env)
     requests = list(islice(env.probe_requests(args.split, seed=args.seed), args.n))
-    prompts = [env.request_prompt(r, v) for r in requests for v in r['variants']]
+    paired = hasattr(env, 'pair_from_base')
+    prompts = ([env.probe_base_prompt(r) for r in requests] if paired else
+               [env.request_prompt(r, v) for r in requests for v in r['variants']])
     args.model = args.model or getattr(env, 'writer', MODEL)
     tok = AutoTokenizer.from_pretrained(args.model, padding_side='left')
     tok.pad_token = tok.pad_token or tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(args.model, dtype=torch.bfloat16).to('cuda').eval()
+    torch.manual_seed(args.seed)
     texts = iter(generate(tok, model, prompts, args.cap, args.batch_size))
     kept = variants_ok = 0
     with open(ROOT.parent / 'envs' / env.name / f'probe_{args.split}.jsonl', 'w', encoding='utf8') as f:
         for request in requests:
-            responses = list(islice(texts, len(request['variants'])))
-            variants_ok += sum(env.probe_keep(request, v, t) for v, t in zip(request['variants'], responses))
-            samples = env.probe_samples(request, responses)
+            if paired:
+                samples = env.pair_from_base(request, next(texts))
+                variants_ok += len(samples)
+            else:
+                responses = list(islice(texts, len(request['variants'])))
+                variants_ok += sum(env.probe_keep(request, v, t) for v, t in zip(request['variants'], responses))
+                samples = env.probe_samples(request, responses)
             kept += bool(samples)
             for sample in samples:
                 f.write(json.dumps(sample, ensure_ascii=False) + '\n')
-    print(f'{env.name} {args.split}: {kept}/{len(requests)} requests kept; {variants_ok}/{len(prompts)} responses did what was asked')
+    print(f'{env.name} {args.split}: {kept}/{len(requests)} requests kept; {variants_ok}/{sum(len(r["variants"]) for r in requests)} responses did what was asked')
 
 
 if __name__ == '__main__':

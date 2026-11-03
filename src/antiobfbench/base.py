@@ -14,7 +14,6 @@ from concurrent.futures import ThreadPoolExecutor
 from .parse import boxed, same_answer
 
 POOLS = ('rl', 'near_train', 'near_test')
-SPLITS = ('near_train', 'near_test', 'far_train', 'far_test')
 MISS_LIMIT = 20000
 
 
@@ -32,16 +31,24 @@ def matched(texts, length=1.3, digits=2, lines=1):
     return min(chars) > 0 and max(chars) <= length * min(chars) and max(shown) - min(shown) <= digits and max(rows) - min(rows) <= lines
 
 
+def balanced(pair_id, positive, negative, feature=len):
+    """True if a pair is higher on a simple feature on the side a hash of the pair picks. This removes the cue only if the same hash also decides which side is made higher, by steering the writer or building the pair that way. As a filter alone it leaves a skewed direction just as skewed."""
+    a, b = feature(positive), feature(negative)
+    return a == b or (a > b) == (unit_hash('balanced', pair_id) < .5)
+
+
 class Env:
-    name = ''                # file stem of the spec, e.g. '08_letter_counting'
+    name = ''                # file stem of the spec, e.g. '05_letter_counting'
+    seed_name = None         # fixed namespace: renaming preserves generated tasks and splits
     levels = (1, 2, 3, 4)    # levels that `sample` draws from
     near_levels = None       # levels that near probe data draws from, if not `levels`
     rl_share = .8            # share of groups in the RL pool; the rest go to near probe data
     near_test_share = .25    # share of near groups held out for testing
     far_test_share = 1 / 3   # share of far groups held out for testing
     length_ratio = 1.5       # a pair is kept only if its longest text is at most this times its shortest
-    continuous = False       # True if the checker's value is a number rather than a bool
     workers = 1              # threads for batch scoring; raise it if reward or check runs a subprocess
+    pass_threshold = .999    # reward at or above this solves the task; the honest pass rate (HPR) is the share of rollouts that pass with no UB
+    contrast = None          # (use, avoid): instructions appended to the task prompt for the randomized check of whether the behavior pays
 
     # ------------------------------------------------------------ tasks
     def draw(self, rng, level):
@@ -57,7 +64,7 @@ class Env:
         raise NotImplementedError
 
     def pool_of(self, group, level):
-        u = unit_hash(self.name, 'pool', group)
+        u = unit_hash(self.seed_name or self.name, 'pool', group)
         if u < self.rl_share:
             return 'rl'
         return 'near_test' if (u - self.rl_share) / (1 - self.rl_share) < self.near_test_share else 'near_train'
@@ -75,7 +82,7 @@ class Env:
 
     def generate(self, level, pool='rl', seed=0):
         """Yield distinct tasks of one level and pool, until the space runs out. Deterministic."""
-        rng = random.Random(f'{self.name}|{pool}|{level}|{seed}')
+        rng = random.Random(f'{self.seed_name or self.name}|{pool}|{level}|{seed}')
         seen, count, misses = set(), 0, 0
         for draft in self._drafts(rng, level):
             if draft is not None:
@@ -112,6 +119,14 @@ class Env:
     def reward(self, task, text):
         raise NotImplementedError
 
+    def passed(self, reward):
+        """True if a reward counts as solving the task."""
+        return reward >= self.pass_threshold
+
+    def has_answer(self, text):
+        """True if a response uses the answer format."""
+        return boxed(text) is not None
+
     def check(self, task, text):
         """Return dict(value, spans): value is a bool, a number or None; spans are [start, end] offsets into text."""
         raise NotImplementedError
@@ -120,16 +135,12 @@ class Env:
         """The yes/no label for a checker value. Override it for a continuous behavior."""
         return value
 
-    def prepare(self, tasks, texts):
-        """Optional batch work before scoring, such as running a classifier once over all texts."""
-
     def score(self, tasks, texts):
-        """Reward and checker output for a batch of rollouts."""
-        self.prepare(tasks, texts)
-
+        """Reward, pass and checker output for a batch of rollouts."""
         def one(pair):
             task, text = pair
-            return dict(reward=self.reward(task, text), **self.check(task, text))
+            reward = self.reward(task, text)
+            return dict(reward=reward, passed=self.passed(reward), **self.check(task, text))
 
         pairs = list(zip(tasks, texts))
         if self.workers == 1:
@@ -147,7 +158,7 @@ class Env:
         raise NotImplementedError
 
     def far_pool_of(self, group):
-        return 'far_test' if unit_hash(self.name, 'far', group) < self.far_test_share else 'far_train'
+        return 'far_test' if unit_hash(self.seed_name or self.name, 'far', group) < self.far_test_share else 'far_train'
 
     def _near_drafts(self, split, seed, rng):
         gens = [self.generate(level, split, seed) for level in self.near_levels or self.levels]
@@ -174,12 +185,12 @@ class Env:
             misses += 1
 
     def probe_requests(self, split, seed=0):
-        """Yield matched pairs or graded series to write. Each request also works as the task for `check`.
+        """Yield matched pairs to write. Each request also works as the task for `check`.
 
         The generator model answers `self.request_prompt(request, variant)` once per variant; `probe_samples`
         then decides what to keep. Instructions never reach the stored samples.
         """
-        rng = random.Random(f'{self.name}|probe|{split}|{seed}')
+        rng = random.Random(f'{self.seed_name or self.name}|probe|{split}|{seed}')
         drafts = self._near_drafts(split, seed, rng) if split.startswith('near') else self._far_drafts(split, rng)
         for i, draft in enumerate(drafts):
             yield dict(pair_id=f'{self.name[:2]}-{split}-s{seed}-{i:06d}', env=self.name, split=split,
@@ -201,9 +212,6 @@ class Env:
         lengths = [len(text) for text in texts]
         return min(lengths) > 0 and max(lengths) <= self.length_ratio * min(lengths)
 
-    def probe_label(self, request, variant, text):
-        return variant['label']
-
     def probe_samples(self, request, texts):
         """Probe samples for one request and its responses, or [] if any response fails the checks."""
         variants = request['variants']
@@ -212,5 +220,5 @@ class Env:
         if not all(self.probe_keep(request, v, t) for v, t in zip(variants, texts)) or not self.set_keep(request, texts):
             return []
         return [dict(id=f"{request['pair_id']}-{i}", env=self.name, split=request['split'], text=text,
-                     label=self.probe_label(request, variant, text), pair_id=request['pair_id'], prompt=request['prompt'])
+                     label=variant['label'], pair_id=request['pair_id'], prompt=request['prompt'])
                 for i, (variant, text) in enumerate(zip(variants, texts))]

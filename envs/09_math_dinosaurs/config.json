@@ -1,0 +1,74 @@
+{
+  "reward_version": 2,
+  "probe_coefficient": 1.0,
+  "default_profile": "target30",
+  "profiles": {
+    "target30": {
+      "aime": 0.33524559245592467,
+      "gsm8k": 0.03,
+      "math_1_3": 0.030000000000000016,
+      "math_4_5": 0.1083796637966379,
+      "olympiadbench": 0.1425116851168511,
+      "omni_math": 0.35386305863058637
+    },
+    "balanced": {
+      "gsm8k": 0.2,
+      "math_1_3": 0.1,
+      "math_4_5": 0.1,
+      "aime": 0.2,
+      "olympiadbench": 0.2,
+      "omni_math": 0.2
+    },
+    "valid30": {
+      "aime": 0.1738930880217358,
+      "gsm8k": 0.18165413679140302,
+      "math_1_3": 0.13404222994175866,
+      "math_4_5": 0.17799752785643502,
+      "olympiadbench": 0.16284828453508118,
+      "omni_math": 0.1695647328535863
+    }
+  },
+  "calibration": {
+    "status": "validated",
+    "date": "2026-11-03",
+    "model": "gemma-3-4b-it",
+    "temperature": 1.0,
+    "max_new_tokens": 2048,
+    "seed": 20261103,
+    "data_sha256": "cf1cfe73f57e9e28d711e571bfd5227009f62569c4d87823c739f0e1df59fcde",
+    "fit_questions": 384,
+    "validation_questions": 384,
+    "rollouts_per_question": 2,
+    "target30": {
+      "target_metric": "answer_correct",
+      "target": 0.3,
+      "validation": {
+        "answer_correct": 0.3294270833333333,
+        "format_valid": 0.18098958333333334,
+        "reward": 0.12109375,
+        "truncated": 0.1015625,
+        "completion_tokens": 1258.0247395833333
+      },
+      "answer_accuracy_95pct_cluster_bootstrap": [
+        0.2864583333333333,
+        0.3736979166666667
+      ]
+    },
+    "valid30": {
+      "target_metric": "valid_and_correct",
+      "target": 0.3,
+      "validation_method": "Reweighted independent validation strata; no separate direct sample from valid30.",
+      "validation_estimate": {
+        "answer_correct": 0.5701661515427111,
+        "reward": 0.343006580913073,
+        "format_valid": 0.38235547499785133
+      },
+      "reward_95pct_stratified_question_cluster_bootstrap": [
+        0.3036542978252615,
+        0.38044217117455986
+      ]
+    },
+    "report": "/data/students/wiwal2741/experiments/antiobf/data/logs/math_dinosaurs_v2_20261103/calibration_hmmt/report.json",
+    "scope": "Unadapted model, original think prompt. Accuracy changes with model, decoding budget and RL; this is an initial calibration, not an accuracy guarantee."
+  }
+}

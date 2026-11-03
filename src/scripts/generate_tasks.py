@@ -20,9 +20,13 @@ def main():
     ap.add_argument('--n', type=int, default=512)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--pool', default='rl')
+    ap.add_argument('--profile', help='math_dinosaurs sampling profile from its config.json')
     args = ap.parse_args()
     for env in [get_env(num) for num in args.envs] or all_envs().values():
-        rows = env.sample(args.n, pool=args.pool, seed=args.seed)
+        if args.profile and env.name != '09_math_dinosaurs':
+            raise ValueError('--profile is supported only for math_dinosaurs')
+        kwargs = {'profile': args.profile} if args.profile else {}
+        rows = env.sample(args.n, pool=args.pool, seed=args.seed, **kwargs)
         folder = ROOT.parent / 'envs' / env.name
         folder.mkdir(exist_ok=True)
         with open(folder / 'tasks.jsonl', 'w', encoding='utf8') as f:
