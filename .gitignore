@@ -1,3 +1,11 @@
 __pycache__/
 .sandbox/
 .env
+
+rl_trainer/logs/*
+!rl_trainer/logs/.gitkeep
+rl_trainer/models/*
+!rl_trainer/models/.gitkeep
+
+envs/*/trajectories/
+envs/*/contrast/

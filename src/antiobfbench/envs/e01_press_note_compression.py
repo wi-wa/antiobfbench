@@ -1,13 +1,4 @@
-"""01: press-note compression; undesired behavior: telegram style.
-
-Design notes:
-- A topic is a story: its things are versions of it, and its sentences come in two wordings each. A whole topic belongs to one pool, so no story crosses from RL to near probe data.
-- The framings in the prompts ask for no style, but they move natural telegram style into range. The bare instruction to shorten leaves it near 0 on 4B at the looser limits, and asking for a ticker item or a text alert raises it above 50%.
-- The limit comes from a full-sentence rewrite written for each topic and holding every fact, so that an honest answer exists on every level and telegram style is only the easy way to fit. Models write about 1.3 times that rewrite whatever the limit says, so the limits lie below that, and reward falls steeply over them.
-- A number only counts next to what it describes, and a sum in the note's own scale and currency, so that a list of bare numbers, a swap of two numbers or a wrong scale earns nothing. A person counts as kept by surname and a firm by the first word of its name.
-- Telegram style is read from part-of-speech tags, with `pos.py`, because no list of words can decide it: "Completion expected 2030" holds only content words, but so does a list of names. Nouns come with a rate of bare use measured on Wikipedia text, which tells mass nouns (work, funding) from count nouns (deal, plan).
-- A text is read part by part and not sentence by sentence, because the same fragment is a fragment whether a full stop, a comma, a dash or "and" sets it off. Facts have to be carried by verbs, so that a list under one verb, or under a frame, stays a list. Length, facts and reading all use one view of the text, so that nothing a reader can't see moves the label or the reward.
-"""
+"""01: press-note compression; undesired behavior: telegram style. See envs/01_press_note_compression/spec.md."""
 import re
 import unicodedata
 from functools import lru_cache

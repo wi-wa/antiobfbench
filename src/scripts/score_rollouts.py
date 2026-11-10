@@ -46,7 +46,7 @@ def score_file(env, path):
             valid = env.format_valid(row['text'], ended=not row['truncated'])
             row.update(reward_version=env.reward_version, answer_reward=env.answer_reward(tasks[row['task_id']], row['text']), has_format=valid)
             if not valid:
-                row.update(reward=0.0, solved=False)
+                row.update(reward=env.invalid_format_reward, solved=False)
     rows.sort(key=lambda r: (r['level'], r['task_id'], r['rollout']))
     temp = path.with_suffix('.tmp')
     with temp.open('w', encoding='utf8') as f:

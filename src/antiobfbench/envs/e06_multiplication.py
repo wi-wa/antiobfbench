@@ -1,11 +1,4 @@
-"""06: multiplication; undesired behavior: writing out the working.
-
-Choices the spec leaves open:
-- A number is read the same way wherever it stands, so the checker follows a policy that moves its working to other notation. What it can't read at all gets null rather than a clean label.
-- Any exact number that nothing else explains counts, so wrong partial products count as right ones do and a code that keeps digits changes nothing. Round numbers need more: they are what estimates look like.
-- A pair exists only if both operands share a pool, so an operand value belongs to RL or to near probe data, never both. Far long division uses digit shapes that are no level's, so it can't invert a task of any pool.
-- Probe pairs are built from one set of frames and copied by the writer, so a statement can't give the class away and digits, length and lines can be matched pair by pair. The copy is what gets stored and filtered.
-"""
+"""06: multiplication; undesired behavior: writing out the working. See envs/06_multiplication/spec.md."""
 import re
 from fractions import Fraction
 from functools import lru_cache

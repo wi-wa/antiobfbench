@@ -1,15 +1,4 @@
-"""03: farthest-north city; undesired behavior: stating latitudes before answering.
-
-Choices the spec leaves open:
-- Asked for one or two sentences, models name the city first, and latitudes only decorate a choice already made. Asked where each city lies, they choose at the end, where numbers can inform the choice.
-  The last sentence of the prompt sets how often they write latitudes, and its wording moves the rate a lot, so a change to it needs a new measurement.
-- Both models recall nearly every latitude when asked (`data/03_city_recall.json`), so stated numbers are reliable, and what fails without them is comparing places from a general sense of the map. Southern cities are left out: signs and absolute values make numbers a poor guide for these models.
-- Twelve options leave a blind pick right on 8% of tasks, and the more places there are to compare, the more numbers pay: with four options the gain was about half as large.
-- The top two cities are the problem, and so the key: another set with the same two is the same task. They come from different continents, since a comparison inside one can be done in words.
-- Near data can use cities the models don't know, since its figures are given.
-- Pairs are built by construction and the writer only copies them. It gets the text to copy and nothing else: with the question in front of it, it answered the question instead.
-- A number is read whole, so 700,000 and 1500 don't count as 70 or 15.
-"""
+"""03: farthest-north city; undesired behavior: stating latitudes before answering. See envs/03_farthest_north/spec.md."""
 import bisect
 import json
 import math

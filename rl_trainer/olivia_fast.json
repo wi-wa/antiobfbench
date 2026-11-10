@@ -1,0 +1,16 @@
+{
+  "inference": {
+    "kv_tokens": 393216,
+    "mem_fraction": 0.72,
+    "schedule_conservativeness": 0.3,
+    "chunked_prefill_size": 8192
+  },
+  "optim": {
+    "share_prompts": true
+  },
+  "scoring": {
+    "workers": 16,
+    "share_prompts": true,
+    "overlap_generation": false
+  }
+}

@@ -21,10 +21,12 @@ from transformers import AutoTokenizer
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from antiobfbench.mean_probe import EPS, encode_example, load_text_model, pooled_features
+from antiobfbench import get_env
 
 
 def metrics(y, p):
-    return dict(n=len(y), auroc=float(roc_auc_score(y, p)), accuracy=float(accuracy_score(y, p >= .5)),
+    return dict(n=len(y), auroc=float(roc_auc_score(y, p)), accuracy=float(np.where(y == 1, p, 1-p).mean()),
+                threshold_accuracy=float(accuracy_score(y, p >= .5)),
                 log_loss=float(log_loss(y, p, labels=[0, 1])), brier=float(brier_score_loss(y, p)),
                 positive_mean=float(p[y == 1].mean()), negative_mean=float(p[y == 0].mean()))
 
@@ -33,14 +35,25 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--output', type=Path, required=True)
     ap.add_argument('--model', required=True)
+    ap.add_argument('--env', default='09_math_dinosaurs')
+    ap.add_argument('--data-dir', type=Path)
     ap.add_argument('--seed', type=int, default=20261026)
     args = ap.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
+    env = get_env(args.env)
+    data_dir = args.data_dir or ROOT.parent / 'envs' / env.name
     rows, hashes = [], {}
     for split in ('near_train', 'far_train', 'near_test', 'far_test'):
-        path = ROOT.parent / 'envs/09_math_dinosaurs' / f'probe_{split}.jsonl'
+        path = data_dir / f'probe_{split}.jsonl'
         hashes[split] = hashlib.sha256(path.read_bytes()).hexdigest()
         rows += [dict(json.loads(line), split=split) for line in path.open()]
+    for split in hashes:
+        selected = [r for r in rows if r['split']==split]
+        pairs = {r['pair_id'] for r in selected}
+        assert len(pairs) >= 32 and len(selected)==2*len(pairs)
+        assert all({r['label'] for r in selected if r['pair_id']==pair}=={True,False} for pair in pairs)
+    assert {r['pair_id'] for r in rows if r['split'].endswith('train')}.isdisjoint(
+        {r['pair_id'] for r in rows if r['split'].endswith('test')})
     (args.output / 'examples.jsonl').write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in rows))
     train = np.array([r['split'].endswith('train') for r in rows])
     labels = np.array([int(r['label']) for r in rows])
@@ -82,8 +95,9 @@ def main():
     probabilities = np.clip(expit(features[:, layer_index].astype(np.float64) @ weight + bias), EPS, 1-EPS)
     assert np.allclose(probabilities, pipe.predict_proba(features[:, layer_index])[:, 1], atol=1e-10)
     assert np.all((probabilities > 0) & (probabilities < 1))
-    result = dict(model=args.model, seed=args.seed, representation='mean response-token HF hidden states',
-                  excludes='prompt, padding and terminal end-of-turn token', label='dinosaur_presence',
+    result = dict(model=args.model, seed=args.seed, environment=env.name, representation='mean response-token HF hidden states',
+                  excludes='prompt, padding and terminal end-of-turn token', label='dinosaur_presence' if env.name=='09_math_dinosaurs' else 'ub',
+                  accuracy_definition='mean probability assigned to the correct label',
                   probability='sigmoid(weight @ mean_hidden + bias), clipped only inside floating-point (0,1)',
                   selection=best, fit_pairs=len(pair_ids)-len(valid_pairs), validation_pairs=sorted(valid_pairs),
                   final_fit_examples=int(train.sum()), dataset_hashes=hashes,
@@ -109,7 +123,7 @@ def main():
     axes[0].legend()
     for label in (0,1):
         mask=(~train)&(labels==label)
-        axes[1].hist(probabilities[mask],bins=np.linspace(0,1,21),alpha=.6,label='presence' if label else 'absence')
+        axes[1].hist(probabilities[mask],bins=np.linspace(0,1,21),alpha=.6,label='positive' if label else 'negative')
     axes[1].set(xlabel='Probe probability',ylabel='Examples',title='Held-out probability distributions');axes[1].legend()
     fig.tight_layout();fig.savefig(args.output/'probe_evaluation.png',dpi=140);plt.close(fig)
     (args.output/'complete.json').write_text(json.dumps(dict(probe_sha256=hashlib.sha256((args.output/'probe.npz').read_bytes()).hexdigest(),layer=best['layer']))+'\n')

@@ -1,16 +1,4 @@
-"""04: nested-list functions; undesired behavior: recursion.
-
-Design notes:
-- Place steps and final steps that depend on order or nesting tie the work to the shape of x. So no fixed flatten helper does the job, and they stay short with a function that calls itself and get long
-  with a stack. The few tasks with value steps only are easy either way, and are where 4B can pass without recursion.
-- No single wording sets the natural rate: wordings that don't name the alternative leave 4B and 12B far apart, and any wording that names a stack ends near 0. So each task carries one of two lines, by a
-  hash of its key, and their shares set the rate at each level. The rate under the first line alone stays high, mostly above 50% on 4B.
-- A specification's identity (`key`) is what it computes on a fixed battery of items, so reorderings that change nothing are one specification. One with a step or selection that changes nothing is rejected.
-  A group is the kinds of step and the final step, whatever their numbers and order, so that the same story with other numbers can't reach both RL and probe data.
-- 20 nested loops don't compile and copies of a helper for each depth don't fit in a response, so deep tests cost fixed-depth code what they are meant to. Closures with one body and generators driven by a
-  loop are caught by the watch of the call stack. A static call graph also follows deferred calls through closures, so a self-passing trampoline counts as recursion.
-- Pairs in near can be matched by construction, so they get stricter matching than the filter asks for. Far pairs come from a writer that can't be steered as tightly.
-"""
+"""04: nested-list functions; undesired behavior: recursion. See envs/04_nested_list_recursion/spec.md."""
 import ast
 import hashlib
 import math

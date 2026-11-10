@@ -6,6 +6,11 @@ import hashlib
 import json
 from pathlib import Path
 import random
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [str(ROOT / 'src'), str(ROOT / 'rl_trainer/src')]
+
 import numpy as np
 from scipy.optimize import minimize
 from transformers import AutoTokenizer
@@ -34,11 +39,14 @@ def main():
     ap.add_argument('--max-tokens',type=int,default=2048)
     args=ap.parse_args();args.output.mkdir(parents=True,exist_ok=False)
     rng=random.Random(args.seed)
+    prompt_hash=hashlib.sha256(PROMPT.encode()).hexdigest()
     cache={}
     if args.cache:
         cached_metadata=json.loads((args.cache.parent/'metadata.json').read_text())
         if cached_metadata['model'] != args.model or cached_metadata['max_tokens'] != args.max_tokens or cached_metadata['temperature'] != 1:
             raise ValueError('Cached calibration model or generation settings differ')
+        if cached_metadata.get('prompt_sha256') != prompt_hash or cached_metadata.get('environment_version') != ENV.reward_version:
+            raise ValueError('Cached calibration uses a different prompt or reward version')
         cache={(r['id'],r['rollout']):r for r in map(json.loads,args.cache.open())}
     rows=[json.loads(l) for l in args.data.open()];rows=[r for r in rows if r['split']=='train']
     tok=AutoTokenizer.from_pretrained(args.model,local_files_only=True);end=tok.convert_tokens_to_ids('<end_of_turn>')
@@ -55,6 +63,7 @@ def main():
     for key in keys:fit+=rng.sample(groups[key],args.fit_per_stratum)
     used={r['id'] for r in fit}
     metadata=dict(model=args.model,seed=args.seed,gpu=args.gpu,temperature=1,max_tokens=args.max_tokens,
+                  prompt_sha256=prompt_hash,environment_version=ENV.reward_version,
                   rollouts_per_question=args.rollouts,cache=str(args.cache) if args.cache else None,cache_sha256=hashlib.sha256(args.cache.read_bytes()).hexdigest() if args.cache else None,kv_tokens=args.kv_tokens,max_running=args.max_running,mem_fraction=args.mem_fraction,data_sha256=hashlib.sha256(args.data.read_bytes()).hexdigest(),
                   target_metric='answer_correct',target=.3,excluded_context_ids=excluded,excluded_strata_ids=unrated,
                   fit_questions=len(fit),selection='Stratified random sample from RL pool; probe train/test questions excluded by original split. Validation questions are disjoint from fitting questions.')
@@ -87,7 +96,8 @@ def main():
                         body=tok.decode(ids[:-1] if ids and ids[-1]==end else ids,skip_special_tokens=False)
                         correct=ENV.answer_reward(task,body);valid=ENV.format_valid(body,ended)
                         row=dict(id=task['id'],stratum=stratum(task),source=task['source'],problem=task['problem'],answer=task['answer'],
-                            response=body,answer_correct=correct,format_valid=valid,reward=correct*valid,rollout=roll,seed=seed,
+                            response=body,answer_correct=correct,format_valid=valid,task_accuracy=correct*valid,
+                            reward=correct if valid else ENV.invalid_format_reward,rollout=roll,seed=seed,
                             completion_tokens=len(ids),truncated=finish=='length')
                         f.write(json.dumps(row,ensure_ascii=False)+'\n');results.append(row)
                     f.flush();print(json.dumps(dict(stage=stage,done=len(results),total=len(jobs))),flush=True)
@@ -96,7 +106,7 @@ def main():
         stats={}
         for key in keys:
             rs=[r for r in fit_results if r['stratum']==key]
-            stats[key]={k:float(np.mean([r[k] for r in rs])) for k in ['answer_correct','format_valid','reward','truncated','completion_tokens']}
+            stats[key]={k:float(np.mean([r[k] for r in rs])) for k in ['answer_correct','format_valid','task_accuracy','reward','truncated','completion_tokens']}
         prior=np.array([settings()['profiles']['target30'][k] for k in keys])
         def fit_weights(metric):
             rates=np.array([stats[k][metric] for k in keys])
@@ -107,7 +117,7 @@ def main():
             if not solved.success:raise RuntimeError(f'No diverse 30% mixture for {metric}: {solved.message}; rates={rates}')
             return {k:float(w) for k,w in zip(keys,solved.x)}
         weights=fit_weights('answer_correct')
-        valid_weights=fit_weights('reward')
+        valid_weights=fit_weights('task_accuracy')
         write(args.output/'proposal.json',dict(weights=weights,valid30_weights=valid_weights,fit_rates=stats,predicted_accuracy=.3))
         # Fix the candidate mixture before generating an independent validation sample.
         counts={k:int(args.validation_tasks*weights[k]) for k in keys}
@@ -117,14 +127,14 @@ def main():
             eligible=[r for r in groups[key] if r['id'] not in used]
             validation+=rng.sample(eligible,counts[key])
         result=generate(validation,'validation')
-        metrics={k:float(np.mean([r[k] for r in result])) for k in ['answer_correct','format_valid','reward','truncated','completion_tokens']}
+        metrics={k:float(np.mean([r[k] for r in result])) for k in ['answer_correct','format_valid','task_accuracy','reward','truncated','completion_tokens']}
         by_question=defaultdict(list)
         for r in result:by_question[r['id']].append(r['answer_correct'])
         qmeans=np.array([np.mean(v) for v in by_question.values()]);boot=np.random.default_rng(args.seed).choice(qmeans,(2000,len(qmeans)),replace=True).mean(1)
         validation_rates={key:{metric:float(np.mean([r[metric] for r in result if r['stratum']==key]))
-                              for metric in ['answer_correct','reward','format_valid']} for key in keys}
+                              for metric in ['answer_correct','task_accuracy','reward','format_valid']} for key in keys}
         valid30_metrics={metric:sum(valid_weights[key]*validation_rates[key][metric] for key in keys)
-                         for metric in ['answer_correct','reward','format_valid']}
+                         for metric in ['answer_correct','task_accuracy','reward','format_valid']}
         report=dict(weights=weights,valid30_weights=valid_weights,valid30_validation_reweighted=valid30_metrics,validation_by_stratum=validation_rates,fit_rates=stats,validation_questions=len(validation),validation_rollouts=len(result),
                     validation_counts=counts,validation=metrics,answer_accuracy_95pct_cluster_bootstrap=np.quantile(boot,[.025,.975]).tolist(),
                     target=.3,within_five_percentage_points=bool(abs(metrics['answer_correct']-.3)<=.05),metadata=metadata)

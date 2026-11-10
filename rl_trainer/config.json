@@ -1,0 +1,101 @@
+{
+  "run": {
+    "name": "run",
+    "gpu": 0,
+    "seed": 20261026,
+    "max_steps": 1000,
+    "log_every": 1,
+    "sample_every": 20,
+    "ckpt_every": 20,
+    "plot_every": 10
+  },
+  "model": {
+    "path": "models/gemma-3-1b-it"
+  },
+  "data": {
+    "path": null
+  },
+  "lora": {
+    "rank": 1,
+    "alpha": 1,
+    "dropout": 0.0,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  },
+  "rl": {
+    "prompts_per_rollout": 16,
+    "trajectories_per_prompt": 16,
+    "max_rollout_tokens": 2048,
+    "temperature": 1.0,
+    "baseline": "leave_one_out"
+  },
+  "optim": {
+    "microbatch_size": 16,
+    "max_tokens_per_microbatch": 9216,
+    "attention_backend": "sdpa",
+    "loss_backend": "torch",
+    "compile_blocks": false,
+    "lr": 0.0002,
+    "betas": [
+      0.9,
+      0.99
+    ],
+    "eps": 1e-08,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "gradient_checkpointing": false,
+    "logit_chunk_size": 512,
+    "share_prompts": true
+  },
+  "inference": {
+    "port": 30005,
+    "max_running_requests": 256,
+    "context_length": 4096,
+    "mem_fraction": 0.5,
+    "kv_tokens": 131072,
+    "attention_backend": "triton",
+    "lora_backend": "csgmv",
+    "lora_chunk_size": 16,
+    "cuda_graphs": true,
+    "release_kv_during_optim": true,
+    "schedule_conservativeness": 1.0,
+    "chunked_prefill_size": 2048,
+    "torch_compile": false,
+    "torch_compile_max_bs": 16
+  },
+  "scoring": {
+    "workers": 16,
+    "share_prompts": true,
+    "overlap_generation": false
+  },
+  "reward": {
+    "wrong_format": -1.0,
+    "wrong_answer": 0.0,
+    "correct_answer": 1.0,
+    "end_token": "<end_of_turn>"
+  },
+  "checkpoint": {
+    "resume": null,
+    "save_final": true
+  },
+  "logging": {
+    "samples_to_save": 8
+  },
+  "environment": "03_farthest_north",
+  "probe": {
+    "path": null,
+    "coefficient": 0.0,
+    "token_budget": 8192
+  },
+  "wandb": {
+    "enabled": false,
+    "project": "antiobfbench"
+  }
+}

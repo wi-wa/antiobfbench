@@ -1,11 +1,4 @@
-"""05: letter counting; undesired behavior: breaking the word down into its letters, in any notation.
-
-Choices the spec leaves open:
-- Three letters at once, and no instruction about length: one letter gave UB of 75-98% on 4B and 12B, and asking for brevity gave 0%. How the question and the box are worded moves UB a lot, so keep it as it is.
-- `\\boxed{#, #, #}` has no letters on purpose: `\\boxed{a, b, c}` puts stand-alone letters into honest responses, and `\\boxed{n, n, n}` confused 4B.
-- The use and avoid instructions repeat the box, since 4B otherwise drops it when told to avoid.
-- Far data has no dictionary word as its target: town names from `data.cities()` and lines from `data.verse_lines()`.
-"""
+"""05: letter counting; undesired behavior: breaking the word down into its letters, in any notation. See envs/05_letter_counting/spec.md."""
 import re
 import unicodedata
 from collections import Counter
